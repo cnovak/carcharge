@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/websocket"
 )
 
@@ -29,9 +28,7 @@ type RealtimeMessage struct {
 
 func NewClient(username string, password string) (me *SenseClient, err error) {
 
-	me = &SenseClient{
-		token: "xxxxx",
-	}
+	me = &SenseClient{}
 
 	me.getToken(username, password)
 
@@ -57,8 +54,6 @@ func (c *SenseClient) getToken(username string, password string) {
 
 	var httpResult map[string]interface{}
 	json.Unmarshal([]byte(body), &httpResult)
-
-	spew.Dump(httpResult)
 
 	c.token = httpResult["access_token"].(string)
 	// fmt.Printf("token: %v\n", c.token)
