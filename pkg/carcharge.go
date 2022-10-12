@@ -27,22 +27,19 @@ type CarClient interface {
 	setChargingAmps(amps int) error
 }
 
-var config2 *util.Configuration
-
-func Rebalance(config *util.Configuration) {
-	config2 = config
+func Rebalance() {
 	// senseClient, _ := NewClient(config.Sense.Username, config.Sense.Password)
 	// realtimeMessage, err := senseClient.getRealTime()
 	powerUsage := PowerUsage{
-		5312,
+		1200,
 		621,
 	}
 
 	ctx := log.WithFields(log.Fields{
-		"power": powerUsage,
-		"cmd":   "rebalance",
+		"solarProduction": powerUsage.solarProduction,
+		"energyUsage":     powerUsage.energyUsage,
 	})
-	ctx.Debug("got power usage")
+	ctx.Debug("current power usage")
 
 	// get the current solar and energy used
 	// fmt.Printf("amps := watts / volts \n")
@@ -61,13 +58,13 @@ func Rebalance(config *util.Configuration) {
 
 	if powerNeeded < float64(negDelta) {
 		// modify charging to be less
-		log.Info("reduce usage")
+		ctx.Info("reduce usage")
 		// chargeState, _ := carClient.getChargeState()
 		// fmt.Printf("reducing charging car to reduce usage delta: %vw\n", power.solarProduction-power.energyUsage)
 		// carClient.setChargingAmps(int(chargeState.ChargeRate) - 1)
 	} else if powerNeeded > tolerance/2 {
 		// modify charging to be more
-		log.Info("increase usage")
+		ctx.Info("increase usage")
 		// fmt.Printf("Charging car to cover usage delta %vw\n", power.solarProduction-power.energyUsage)
 		chargeCar(int(powerNeeded))
 		// chargeState, error := carClient.getChargeState()
@@ -76,7 +73,7 @@ func Rebalance(config *util.Configuration) {
 		// }
 		// carClient.setChargingAmps(int(chargeState.ChargeRate) + 1)
 	} else {
-		log.Info("charging balanced")
+		ctx.Info("charging balanced")
 		// fmt.Printf("Charging balanced\n")
 	}
 	// chargeCar(2000)
@@ -85,13 +82,15 @@ func Rebalance(config *util.Configuration) {
 func chargeCar(watts int) {
 	token := new(oauth2.Token)
 
-	token.AccessToken = config2.Tesla.AccessToken
-	token.RefreshToken = config2.Tesla.RefreshToken
+	token.AccessToken = util.Config.Tesla.AccessToken
+	token.RefreshToken = util.Config.Tesla.RefreshToken
 	token.TokenType = "Bearer"
 	token.Expiry = time.Now()
 
-	// token.Expiry = {{ From DataBase }}
-	// token.TokenType = {{ From DataBase }}
+	log.WithFields(log.Fields{
+		"AccessToken":  "XXXX" + token.AccessToken[len(token.AccessToken)-7:],
+		"RefreshToken": "XXXX" + token.RefreshToken[len(token.RefreshToken)-7:],
+	}).Debug("chargeCar() called")
 
 	carClient, err := tesla.NewClient(context.Background(), tesla.WithToken(token))
 	if err != nil {
@@ -99,23 +98,17 @@ func chargeCar(watts int) {
 		os.Exit(1)
 	}
 
-	ctx := log.WithFields(log.Fields{
-		"token.AccessToken":  token.AccessToken[0:5],
-		"token.RefreshToken": token.RefreshToken[0:5],
-	})
-	ctx.Debug("got Car Client instance")
-
 	vehicles, err := carClient.Vehicles()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	ctx := log.WithFields(log.Fields{"vehicleCount": len(vehicles)})
+	ctx.Debug("got Tesla Vehicles")
 
-	vin := util.Config.Tesla.VehicleVin
 	var vehicle *tesla.Vehicle
-
 	for _, v := range vehicles {
-		if v.Vin == vin {
+		if v.Vin == util.Config.Tesla.VehicleVin {
 			vehicle = v
 		}
 	}
@@ -125,14 +118,11 @@ func chargeCar(watts int) {
 		"carName": vehicle.DisplayName,
 	})
 
-	ctx.Debug("new client2")
+	ctx.Debug("Vehicle found")
+
 	volts := util.Config.Tesla.ChargerVolts
 	amps := watts / volts
-
-	ctx.Debug("amps := watts / volts \n")
-	ctx.Debugf("%v := %v  / %v  \n", amps, watts, volts)
-
-	ctx.Debugf("Starting to charge %s with %v amps \n", vehicle.DisplayName, amps)
+	ctx.WithFields(log.Fields{"watts": watts, "amps": amps, "volts": volts}).Info("calculated amps")
 
 	vehicle, err = teslaWakeup(vehicle)
 	if err != nil {
@@ -140,12 +130,17 @@ func chargeCar(watts int) {
 		return
 	}
 
-	ctx.Debug("setting charging amps")
-	err = vehicle.SetChargingAmps(amps)
-	if err != nil {
-		ctx.WithError(err).Error("setting charging amps")
-		return
+	if amps > 0 {
+		ctx.WithField("amps", amps).Info("setting charging amps")
+		err = vehicle.SetChargingAmps(amps)
+		if err != nil {
+			ctx.WithError(err).Error("setting charging amps")
+			return
+		}
+	} else {
+		ctx.WithField("amps", amps).Debug("skipping setting charging amps")
 	}
+
 }
 
 func modifyCharge(senseClient EnergyClient, carClient CarClient) error {
@@ -183,7 +178,6 @@ func modifyCharge(senseClient EnergyClient, carClient CarClient) error {
 			isBalanced = true
 			fmt.Printf("Charging balanced\n")
 		}
-
 	}
 	return nil
 }
@@ -192,23 +186,24 @@ func teslaWakeup(vehicle *tesla.Vehicle) (*tesla.Vehicle, error) {
 	timeout := 15
 	startTime := time.Now()
 
-	fmt.Printf("time since: %v\n", time.Since(startTime))
-	fmt.Printf("time.Since(startTime) < time.Second: %v\n", time.Since(startTime) < time.Second)
+	ctx := log.WithFields(log.Fields{
+		"VehicleState": vehicle.State,
+		"VIN":          vehicle.Vin,
+	})
+	ctx.Debug("teslaWakeup()")
 
 	var err error
 	for int(time.Since(startTime).Seconds()) < timeout {
-		log.WithField("VIN", vehicle.Vin).Debug("waking vehice")
 
 		vehicle, err := vehicle.Wakeup()
-		// err = errors.New("40X")
-		if err == nil {
-			log.WithField("timeElapsed", time.Since(startTime).Seconds()).Debug("vehicle.Wakeup")
+		ctx.Debug("wakeup called")
+		if err == nil && vehicle.State == "online" {
+			ctx.WithDuration(time.Since(startTime)).Debug("vehicle online")
 			break
 		}
-		log.WithField("timeElapsed", time.Since(startTime).Seconds()).WithError(err).Error("vehicle.Wakeup")
-		fmt.Printf("Error: %v\n", err)
-		fmt.Printf("vehicle state: %v\n", vehicle.State)
+		ctx.WithDuration(time.Since(startTime)).WithField("sleep", "3").Debug("vehicle not online, sleeping...")
 		time.Sleep(3 * time.Second)
 	}
+	ctx.WithDuration(time.Since(startTime)).Debug("teslaWakeup() done")
 	return vehicle, err
 }
