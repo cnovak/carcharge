@@ -11,7 +11,8 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceRoot}",
-            "args": ["energy", "--config", ".env"]
+           // "args": ["rebalance", "--config", "config.yaml", "--logfile", "logfile.log"]
+           "args": ["rebalance", "--config", "config.yaml", "--logfile", "logfile.log"]
         }
     ]
 }

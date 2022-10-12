@@ -1,4 +1,4 @@
-package carcharge
+package pkg
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ type SenseClient struct {
 	monitorId float64
 }
 
-type RealtimeMessage struct {
+type PowerUsage struct {
 	solarProduction float64
 	energyUsage     float64
 }
@@ -62,7 +62,7 @@ func (c *SenseClient) getToken(username string, password string) {
 
 }
 
-func (c *SenseClient) getRealTime() (*RealtimeMessage, error) {
+func (c *SenseClient) getRealTime() (*PowerUsage, error) {
 
 	//addr := fmt.Sprintf(wsUrl, c.monitorId, c.token)
 	addr := fmt.Sprintf("wss://clientrt.sense.com/monitors/%v/realtimefeed?access_token=%s", c.monitorId, c.token)
@@ -76,7 +76,7 @@ func (c *SenseClient) getRealTime() (*RealtimeMessage, error) {
 	}
 	defer wsConnnection.Close()
 
-	var realTimeMsg *RealtimeMessage = nil
+	var realTimeMsg *PowerUsage = nil
 
 	var rawResponse map[string]interface{}
 	for realTimeMsg == nil {
@@ -98,7 +98,7 @@ func (c *SenseClient) getRealTime() (*RealtimeMessage, error) {
 			payload := rawResponse["payload"].(map[string]interface{})
 			usage := payload["w"].(float64)
 			solar := payload["solar_w"].(float64)
-			realTimeMsg = &RealtimeMessage{solarProduction: solar, energyUsage: usage}
+			realTimeMsg = &PowerUsage{solarProduction: solar, energyUsage: usage}
 
 		}
 	}

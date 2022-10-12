@@ -4,11 +4,11 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"os"
-
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	// u "github.com/cnovak/carcharge/pkg"
-	myutil "github.com/cnovak/carcharge/util"
+	"github.com/spf13/viper"
+
+	util "github.com/cnovak/carcharge/util"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -31,19 +31,25 @@ to quickly create a Cobra application.`,
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		os.Exit(1)
+		log.WithError(err).Errorf("Error executing command")
+
 	}
 }
 
 func init() {
-	cobra.OnInitialize(myutil.InitConfig)
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVar(&myutil.CfgFile, "config", "", "config file (default is $HOME/.carcharge.yaml)")
+	rootCmd.PersistentFlags().StringVar(&util.ConfigFile, "config", "", "config file (default is ./config.yaml)")
+	rootCmd.PersistentFlags().String("logfile", "./log.txt", "log file")
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
+	viper.BindPFlag("logfile", rootCmd.PersistentFlags().Lookup("logfile"))
+
+	cobra.OnInitialize(initialize)
+
+}
+
+func initialize() {
+	util.InitializeConfig()
+	util.InitializeLogs(util.Config)
 }

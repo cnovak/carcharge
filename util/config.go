@@ -1,62 +1,77 @@
-package myutil
+package util
 
 import (
-	"fmt"
-	"log"
 	"os"
 
+	"github.com/apex/log"
+	"github.com/apex/log/handlers/cli"
 	"github.com/spf13/viper"
 )
 
-// global variables available via util package
-var (
-	Port  int
-	DbURI string
-)
+// Configuration
+var Config Configuration
 
-var CfgFile string
+// Used for flags.
+var ConfigFile string
 
-// initConfig reads in config file and ENV variables if set.
-func InitConfig() {
-	if CfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(CfgFile)
-	} else {
-		// Find home directory.
-		// home, err := os.UserHomeDir()
-		// cobra.CheckErr(err)
+type Configuration struct {
+	Sense   SenseConfig
+	Tesla   TeslaConfig
+	Logfile string
+}
 
-		// Search config in home directory with name ".carcharge" (without extension).
-		viper.SetConfigFile(".env")
-		// viper.AddConfigPath(home)
-		// viper.SetConfigType("yaml")
-		// viper.SetConfigName(".carcharge")
-	}
+type SenseConfig struct {
+	Username string
+	Password string
+}
 
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	}
-	fmt.Println("API TOKEN:", viper.Get("API_SECRET"))
+type TeslaConfig struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresIn    int
+	VehicleVin   string
+	ChargerVolts int
 }
 
 func init() {
-	// viper.SetDefault(PORT, 8080)
-	viper.SetConfigFile(".env")
-	viper.AddConfigPath(".")
-	viper.AutomaticEnv()
+}
 
-	fmt.Println("---------to see in test printout")
-	cwd, _ := os.Getwd()
-	fmt.Println(cwd)
-	fmt.Println("---------")
+func InitializeConfig() {
+	log.SetHandler(cli.Default)
 
-	if err := viper.ReadInConfig(); err != nil {
-		log.Fatal("no environment file!")
+	ctx := log.WithFields(log.Fields{
+		"ConfigFile": ConfigFile,
+	})
+
+	if ConfigFile != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(ConfigFile)
+		ctx.Info("use flag config file")
+	} else {
+		// Find home directory.
+		home, err := os.UserHomeDir()
+		if err != nil {
+			ctx.WithError(err).Error("cannot find home directory")
+		}
+
+		// Search config in home directory with name ".cobra" (without extension).
+		viper.AddConfigPath(home)
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath(".")
 	}
 
-	Port = viper.GetInt("PORT")
-	DbURI = viper.GetString("DB_URI")
+	viper.AutomaticEnv()
+
+	err := viper.ReadInConfig()
+	if err != nil { // Handle errors reading the config file
+		ctx.WithError(err).Errorf("fatal error config file")
+		os.Exit(1)
+	}
+
+	err = viper.Unmarshal(&Config)
+	if err != nil {
+		ctx.WithError(err).Error("Cannot unmarshal config file")
+		os.Exit(1)
+	}
 }
