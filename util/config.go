@@ -74,4 +74,6 @@ func InitializeConfig() {
 		ctx.WithError(err).Error("Cannot unmarshal config file")
 		os.Exit(1)
 	}
+
+	// TODO: Validate all fields are set
 }

@@ -2,8 +2,9 @@ package pkg
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
+	"reflect"
 	"time"
 
 	"github.com/apex/log"
@@ -27,13 +28,17 @@ type CarClient interface {
 	setChargingAmps(amps int) error
 }
 
-func Rebalance() {
-	// senseClient, _ := NewClient(config.Sense.Username, config.Sense.Password)
-	// realtimeMessage, err := senseClient.getRealTime()
-	powerUsage := PowerUsage{
-		1200,
-		621,
+func Rebalance() error {
+	senseClient, _ := NewClient(util.Config.Sense.Username, util.Config.Sense.Password)
+	powerUsage, err := senseClient.getRealTime()
+	if err != nil {
+		log.WithError(err).Error("error getting power usage from Sense")
+		return err
 	}
+	// powerUsage := PowerUsage{
+	// 	00,
+	// 	1200,
+	// }
 
 	ctx := log.WithFields(log.Fields{
 		"solarProduction": powerUsage.solarProduction,
@@ -59,9 +64,7 @@ func Rebalance() {
 	if powerNeeded < float64(negDelta) {
 		// modify charging to be less
 		ctx.Info("reduce usage")
-		// chargeState, _ := carClient.getChargeState()
-		// fmt.Printf("reducing charging car to reduce usage delta: %vw\n", power.solarProduction-power.energyUsage)
-		// carClient.setChargingAmps(int(chargeState.ChargeRate) - 1)
+		stopChargingCar()
 	} else if powerNeeded > tolerance/2 {
 		// modify charging to be more
 		ctx.Info("increase usage")
@@ -76,12 +79,69 @@ func Rebalance() {
 		ctx.Info("charging balanced")
 		// fmt.Printf("Charging balanced\n")
 	}
-	// chargeCar(2000)
+	ctx.Info("sleeping for 15 mintues...")
+	time.Sleep(15 * time.Minute)
+	return nil
 }
 
-func chargeCar(watts int) {
-	token := new(oauth2.Token)
+func stopChargingCar() error {
+	err, ctx, vehicle := getVehicleClient()
+	if err != nil {
+		return err
+	}
 
+	ctx = log.WithFields(log.Fields{
+		"vin":     vehicle.Vin,
+		"carName": vehicle.DisplayName,
+	})
+
+	err = vehicle.StopCharging()
+	if err != nil {
+		ctx.WithError(err).Error("Error stopping car charging")
+		return err
+	}
+
+	ctx.Debug("Stopped charging")
+	return nil
+}
+
+func chargeCar(watts int) error {
+
+	err, ctx, vehicle := getVehicleClient()
+
+	volts := util.Config.Tesla.ChargerVolts
+	amps := watts / volts
+	ctx.WithFields(log.Fields{"watts": watts, "amps": amps, "volts": volts}).Info("calculated amps")
+
+	vehicle, err = teslaWakeup(vehicle)
+	if err != nil {
+		ctx.WithError(err).Error("waking vehicle")
+		return err
+	}
+
+	if amps > 0 {
+		ctx.WithField("amps", amps).Info("setting charging amps")
+		err = vehicle.SetChargingAmps(amps)
+		if err != nil {
+			ctx.WithError(err).Error("setting charging amps")
+			return err
+		}
+	} else {
+		ctx.WithField("amps", amps).Debug("skipping setting charging amps")
+	}
+
+	err = vehicle.StartCharging()
+	if err != nil {
+		ctx.WithError(err).Error("starting charge failed")
+		return err
+	}
+	ctx.Info("charging started")
+	return nil
+}
+
+func getVehicleClient() (error, *log.Entry, *tesla.Vehicle) {
+
+	token := new(oauth2.Token)
 	token.AccessToken = util.Config.Tesla.AccessToken
 	token.RefreshToken = util.Config.Tesla.RefreshToken
 	token.TokenType = "Bearer"
@@ -90,18 +150,18 @@ func chargeCar(watts int) {
 	log.WithFields(log.Fields{
 		"AccessToken":  "XXXX" + token.AccessToken[len(token.AccessToken)-7:],
 		"RefreshToken": "XXXX" + token.RefreshToken[len(token.RefreshToken)-7:],
-	}).Debug("chargeCar() called")
+	}).Debug("getVehicleClient() called")
 
 	carClient, err := tesla.NewClient(context.Background(), tesla.WithToken(token))
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.WithError(err).Error("cannot get car client")
+		return err, nil, nil
 	}
 
 	vehicles, err := carClient.Vehicles()
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.WithError(err).Error("cannot get vehcile list")
+		return err, nil, nil
 	}
 	ctx := log.WithFields(log.Fields{"vehicleCount": len(vehicles)})
 	ctx.Debug("got Tesla Vehicles")
@@ -113,34 +173,19 @@ func chargeCar(watts int) {
 		}
 	}
 
+	if reflect.ValueOf(vehicle).IsZero() {
+		err := errors.New("vehicle not found with VIN in configuration")
+		ctx.WithField("vin", util.Config.Tesla.VehicleVin).WithError(err).Error("Vehicle not found in Vehicle list")
+		return err, nil, nil
+	}
+
 	ctx = log.WithFields(log.Fields{
 		"vin":     vehicle.Vin,
 		"carName": vehicle.DisplayName,
 	})
 
 	ctx.Debug("Vehicle found")
-
-	volts := util.Config.Tesla.ChargerVolts
-	amps := watts / volts
-	ctx.WithFields(log.Fields{"watts": watts, "amps": amps, "volts": volts}).Info("calculated amps")
-
-	vehicle, err = teslaWakeup(vehicle)
-	if err != nil {
-		ctx.WithError(err).Error("waking vehicle")
-		return
-	}
-
-	if amps > 0 {
-		ctx.WithField("amps", amps).Info("setting charging amps")
-		err = vehicle.SetChargingAmps(amps)
-		if err != nil {
-			ctx.WithError(err).Error("setting charging amps")
-			return
-		}
-	} else {
-		ctx.WithField("amps", amps).Debug("skipping setting charging amps")
-	}
-
+	return err, ctx, vehicle
 }
 
 func modifyCharge(senseClient EnergyClient, carClient CarClient) error {
