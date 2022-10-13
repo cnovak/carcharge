@@ -108,6 +108,9 @@ func stopChargingCar() error {
 func chargeCar(watts int) error {
 
 	err, ctx, vehicle := getVehicleClient()
+	if err != nil {
+		return err
+	}
 
 	volts := util.Config.Tesla.ChargerVolts
 	amps := watts / volts
