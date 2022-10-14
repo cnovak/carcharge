@@ -35,10 +35,6 @@ func Rebalance() error {
 		log.WithError(err).Error("error getting power usage from Sense")
 		return err
 	}
-	// powerUsage := PowerUsage{
-	// 	00,
-	// 	1200,
-	// }
 
 	ctx := log.WithFields(log.Fields{
 		"solarProduction": powerUsage.solarProduction,
@@ -58,14 +54,11 @@ func Rebalance() error {
 
 	ctx.Debug("power needed")
 
-	delta := tolerance / 2
-	negDelta := delta * -1
-
-	if powerNeeded < float64(negDelta) {
+	if powerNeeded < 0 {
 		// modify charging to be less
 		ctx.Info("reduce usage")
 		stopChargingCar()
-	} else if powerNeeded > tolerance/2 {
+	} else if powerNeeded > 0 {
 		// modify charging to be more
 		ctx.Info("increase usage")
 		// fmt.Printf("Charging car to cover usage delta %vw\n", power.solarProduction-power.energyUsage)
@@ -79,8 +72,6 @@ func Rebalance() error {
 		ctx.Info("charging balanced")
 		// fmt.Printf("Charging balanced\n")
 	}
-	ctx.Info("sleeping for 15 mintues...")
-	time.Sleep(15 * time.Minute)
 	return nil
 }
 
@@ -114,7 +105,8 @@ func chargeCar(watts int) error {
 
 	volts := util.Config.Tesla.ChargerVolts
 	amps := watts / volts
-	ctx.WithFields(log.Fields{"watts": watts, "amps": amps, "volts": volts}).Info("calculated amps")
+	actualWatts := amps * volts
+	ctx.WithFields(log.Fields{"actualWatts": actualWatts, "watts": watts, "amps": amps, "volts": volts}).Info("calculated amps")
 
 	vehicle, err = teslaWakeup(vehicle)
 	if err != nil {
@@ -130,7 +122,8 @@ func chargeCar(watts int) error {
 			return err
 		}
 	} else {
-		ctx.WithField("amps", amps).Debug("skipping setting charging amps")
+		ctx.WithField("amps", amps).Debug("skipping charging")
+		return nil
 	}
 
 	err = vehicle.StartCharging()
