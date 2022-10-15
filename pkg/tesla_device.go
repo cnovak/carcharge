@@ -1,3 +1,6 @@
+/*
+Copyright © 2022 Chris Novak <canovak@gmail.com>
+*/
 package pkg
 
 import (
@@ -20,7 +23,7 @@ type TeslaService struct {
 }
 
 func (t *TeslaService) stopChargingCar() error {
-	err, ctx, vehicle := t.getVehicleClient()
+	ctx, vehicle, err := t.getVehicleClient()
 	if err != nil {
 		return err
 	}
@@ -63,7 +66,7 @@ func (t *TeslaService) stopChargingCar() error {
 
 func (t *TeslaService) chargeCar(targetWatts int) error {
 
-	err, ctx, vehicle := t.getVehicleClient()
+	ctx, vehicle, err := t.getVehicleClient()
 	if err != nil {
 		return err
 	}
@@ -130,7 +133,7 @@ func (t *TeslaService) chargeCar(targetWatts int) error {
 	return nil
 }
 
-func (t *TeslaService) getVehicleClient() (error, *log.Entry, *tesla.Vehicle) {
+func (t *TeslaService) getVehicleClient() (*log.Entry, *tesla.Vehicle, error) {
 
 	token := new(oauth2.Token)
 	token.AccessToken = util.Config.Tesla.AccessToken
@@ -146,13 +149,13 @@ func (t *TeslaService) getVehicleClient() (error, *log.Entry, *tesla.Vehicle) {
 	carClient, err := tesla.NewClient(context.Background(), tesla.WithToken(token))
 	if err != nil {
 		log.WithError(err).Error("cannot get car client")
-		return err, nil, nil
+		return nil, nil, err
 	}
 
 	vehicles, err := carClient.Vehicles()
 	if err != nil {
 		log.WithError(err).Error("cannot get vehcile list")
-		return err, nil, nil
+		return nil, nil, err
 	}
 	ctx := log.WithFields(log.Fields{"vehicleCount": len(vehicles)})
 	ctx.Debug("got Tesla Vehicles")
@@ -167,7 +170,7 @@ func (t *TeslaService) getVehicleClient() (error, *log.Entry, *tesla.Vehicle) {
 	if reflect.ValueOf(vehicle).IsZero() {
 		err := errors.New("vehicle not found with VIN in configuration")
 		ctx.WithField("vin", util.Config.Tesla.VehicleVin).WithError(err).Error("Vehicle not found in Vehicle list")
-		return err, nil, nil
+		return nil, nil, err
 	}
 
 	ctx = log.WithFields(log.Fields{
@@ -176,7 +179,7 @@ func (t *TeslaService) getVehicleClient() (error, *log.Entry, *tesla.Vehicle) {
 	})
 
 	ctx.Debug("Vehicle found")
-	return err, ctx, vehicle
+	return ctx, vehicle, err
 }
 
 func (t *TeslaService) teslaWakeup(vehicle *tesla.Vehicle) (*tesla.Vehicle, error) {

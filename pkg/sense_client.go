@@ -1,3 +1,6 @@
+/*
+Copyright © 2022 Chris Novak <canovak@gmail.com>
+*/
 package pkg
 
 import (
@@ -5,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 
@@ -51,9 +54,9 @@ func (c *SenseService) getToken(username string, password string) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("ioutil.ReadAll() error(%v)", err)
+		log.Fatalf("io.ReadAll() error(%v)", err)
 	}
 
 	var httpResult map[string]interface{}

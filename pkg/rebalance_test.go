@@ -1,3 +1,6 @@
+/*
+Copyright © 2022 Chris Novak <canovak@gmail.com>
+*/
 package pkg
 
 import (
@@ -28,95 +31,58 @@ func (m *MockTeslaService) chargeCar(targetWatts int) error {
 func TestRebalance(t *testing.T) {
 
 	mockSenseService := &MockSenseService{}
-	mockSenseService.On("getRealTime").Return(&PowerUsage{100, 500}, nil).Once()
-
 	mockTeslaService := &MockTeslaService{}
-	mockTeslaService.On("chargeCar", -400).Return(nil).Once()
-
 	rb := NewRebalancer(mockSenseService, mockTeslaService)
-	err := rb.Rebalance()
-	assert.Nil(t, err)
 
-	// // assert that the expectations were met
-	mockSenseService.AssertExpectations(t)
-	mockTeslaService.AssertExpectations(t)
+	var myTests = []struct {
+		powerUsage  PowerUsage
+		chargeWatts int
+	}{
+		{PowerUsage{100, 500}, -400},
+		{PowerUsage{1000, 500}, 500},
+		{PowerUsage{2020, 0}, 2020},
+		{PowerUsage{-1, 500}, -501},
+		{PowerUsage{0, 500}, -500},
+	}
+
+	for _, testData := range myTests {
+		senseMockCall := mockSenseService.On("getRealTime").Return(&testData.powerUsage, nil).Once()
+		teslaMockCall := mockTeslaService.On("chargeCar", testData.chargeWatts).Return(nil).Once()
+		err := rb.Rebalance()
+		assert.Nil(t, err)
+		mockSenseService.AssertExpectations(t)
+		mockTeslaService.AssertExpectations(t)
+		// remove the handler now so we can add another one that takes precedence
+		senseMockCall.Unset()
+		teslaMockCall.Unset()
+
+	}
+
 }
 
-// mockEnergyClient := &MockEnergyClient{}
-// mockEnergyClient.On("getRealTime").Return(&RealtimeMessage{2000, 500}, nil).Once()
-// mockEnergyClient.On("getRealTime").Return(&RealtimeMessage{2000, 800}, nil).Once()
-// mockEnergyClient.On("getRealTime").Return(&RealtimeMessage{2000, 1600}, nil).Once()
-// mockEnergyClient.On("getRealTime").Return(&RealtimeMessage{2000, 1800}, nil).Once()
+func TestRebalanceWhenBalanced(t *testing.T) {
 
-// mockCarClient := &MockCarClient{}
-// mockCarClient.On("startCharge").Return(nil)
-// //mockCarClient.On("getChargeState").Return(tesla.ChargeState{ChargeRate: 5}, errors.New("Fail Duckworth"))
-// mockCarClient.On("getChargeState").Return(tesla.ChargeState{ChargeRate: 5}, nil)
-// mockCarClient.On("setChargingAmps").Return(nil)
+	mockSenseService := &MockSenseService{}
+	mockTeslaService := &MockTeslaService{}
+	rb := NewRebalancer(mockSenseService, mockTeslaService)
 
-// error := modifyCharge(mockEnergyClient, mockCarClient)
+	// If power is balanced do not make a call
+	myTests := []struct {
+		powerUsage PowerUsage
+	}{
+		{PowerUsage{2200, 2200}},
+		{PowerUsage{10, 10}},
+		{PowerUsage{0, 0}},
+	}
 
-// assert.Nil(t, error)
+	for _, testData := range myTests {
+		senseMockCall := mockSenseService.On("getRealTime").Return(&testData.powerUsage, nil).Once()
+		err := rb.Rebalance()
+		assert.Nil(t, err)
+		mockSenseService.AssertExpectations(t)
+		mockTeslaService.AssertExpectations(t)
+		// remove the handler now so we can add another one that takes precedence
+		senseMockCall.Unset()
+	}
 
-// // assert that the expectations were met
-// mockEnergyClient.AssertExpectations(t)
-// mockCarClient.AssertExpectations(t)
-// }
-
-// func Test_teslaWakeup(t *testing.T) {
-
-// 	v1 := tesla.Vehicle{
-// 		Color:       nil,
-// 		DisplayName: "v1",
-// 		ID:          123,
-// 		OptionCodes: "options",
-
-// 		VehicleID:              3422,
-// 		Vin:                    "DV2344",
-// 		State:                  "sleeps",
-// 		IDS:                    "ids",
-// 		RemoteStartEnabled:     true,
-// 		CalendarEnabled:        false,
-// 		NotificationsEnabled:   true,
-// 		BackseatToken:          "backseat token",
-// 		BackseatTokenUpdatedAt: "updated at",
-// 		AccessType:             "Access",
-// 		InService:              false,
-// 		APIVersion:             1.0,
-// 		CommandSigning:         "Cmd",
-// 		VehicleConfig:          nil,
-// 	}
-
-// 	type args struct {
-// 		vehicle *tesla.Vehicle
-// 	}
-
-// 	tests := []struct {
-// 		name    string
-// 		args    args
-// 		want    *tesla.Vehicle
-// 		wantErr bool
-// 	}{
-// 		{
-// 			name: "test1",
-// 			args: args{
-// 				vehicle: &v1,
-// 			},
-// 			want:    &v1,
-// 			wantErr: false,
-// 		},
-// 	}
-
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			got, err := teslaWakeup(tt.args.vehicle)
-// 			if (err != nil) != tt.wantErr {
-// 				t.Errorf("teslaWakeup() error = %v, wantErr %v", err, tt.wantErr)
-// 				return
-// 			}
-// 			if !reflect.DeepEqual(got, tt.want) {
-// 				t.Errorf("teslaWakeup() = %v, want %v", got, tt.want)
-// 			}
-// 		})
-// 	}
-// }
+}

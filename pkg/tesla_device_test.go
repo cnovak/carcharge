@@ -1,3 +1,6 @@
+/*
+Copyright © 2022 Chris Novak <canovak@gmail.com>
+*/
 package pkg
 
 // type MockSenseClient struct {
