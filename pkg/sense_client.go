@@ -16,7 +16,11 @@ const baseUrl = "https://api.sense.com/apiservice/api/v1/authenticate"
 const wsUrl = "wss://clientrt.sense.com/monitors/%v/realtimefeed?access_token=%s&"
 const contentType = "application/x-www-form-urlencoded; charset=UTF-8;"
 
-type SenseClient struct {
+type EnergyService interface {
+	getRealTime() (*PowerUsage, error)
+}
+
+type SenseService struct {
 	token     string
 	monitorId float64
 }
@@ -26,19 +30,18 @@ type PowerUsage struct {
 	energyUsage     float64
 }
 
-func NewClient(username string, password string) (me *SenseClient, err error) {
+func NewSenseService(username string, password string) (me *SenseService, err error) {
 
-	me = &SenseClient{}
+	me = &SenseService{}
 
 	me.getToken(username, password)
 
 	return me, nil
 }
 
-func (c *SenseClient) getToken(username string, password string) {
+func (c *SenseService) getToken(username string, password string) {
 
 	jsonBody := []byte(fmt.Sprintf("email=%s&password=%s", username, password))
-	// jsonBody := []byte(`email=canovak%40gmail.com&password=XYGez1u%248eIx`)
 	bodyReader := bytes.NewReader(jsonBody)
 
 	resp, err := http.Post(baseUrl, contentType, bodyReader)
@@ -56,16 +59,14 @@ func (c *SenseClient) getToken(username string, password string) {
 	json.Unmarshal([]byte(body), &httpResult)
 
 	c.token = httpResult["access_token"].(string)
-	// fmt.Printf("token: %v\n", c.token)
-
 	c.monitorId = httpResult["monitors"].([]interface{})[0].(map[string]interface{})["id"].(float64)
 
 }
 
-func (c *SenseClient) getRealTime() (*PowerUsage, error) {
+func (c *SenseService) getRealTime() (*PowerUsage, error) {
 
 	//addr := fmt.Sprintf(wsUrl, c.monitorId, c.token)
-	addr := fmt.Sprintf("wss://clientrt.sense.com/monitors/%v/realtimefeed?access_token=%s", c.monitorId, c.token)
+	addr := fmt.Sprintf(wsUrl, c.monitorId, c.token)
 
 	//u := url.URL{Scheme: "ws", Host: addr, Path: "/echo"}
 	log.Printf("\nconnecting to %s\n", addr)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cnovak/carcharge/pkg"
+	"github.com/cnovak/carcharge/util"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +24,10 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		for {
-			pkg.Rebalance()
+			senseClient, _ := pkg.NewSenseService(util.Config.Sense.Username, util.Config.Sense.Password)
+			carService := &pkg.TeslaService{}
+			rebalancer := pkg.NewRebalancer(senseClient, carService)
+			rebalancer.Rebalance()
 			sleepMinutes := 2
 			var plural string
 			if sleepMinutes > 1 {
