@@ -9,10 +9,10 @@
         "type": "go",
         "request": "launch",
         "mode": "test",
-        "program": "${workspaceFolder}/pkg",
+        "program": "${workspaceFolder}/internal",
         "args": [
-            // "-test.run",
-            // "TestRebalance"
+            "-test.run",
+            "TestRebalance"
         ]
     },
       

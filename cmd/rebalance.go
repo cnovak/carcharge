@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/cnovak/carcharge/pkg"
-	"github.com/cnovak/carcharge/util"
+	"github.com/cnovak/carcharge/internal"
+	"github.com/cnovak/carcharge/internal/util"
 	"github.com/spf13/cobra"
 )
 
@@ -25,19 +25,19 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		for {
-			senseClient, _ := pkg.NewSenseService(util.Config.Sense.Username, util.Config.Sense.Password)
-			vehicleClient, err := pkg.GetVehicleClient()
+			senseClient, _ := internal.NewSenseService(util.Config.Sense.Username, util.Config.Sense.Password)
+			vehicleClient, err := internal.GetVehicleClient()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 				os.Exit(1)
 			}
 
-			carService, err := pkg.NewTeslaService(vehicleClient)
+			carService, err := internal.NewTeslaService(vehicleClient)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 				os.Exit(1)
 			}
-			rebalancer, err := pkg.NewRebalancer(senseClient, carService)
+			rebalancer, err := internal.NewRebalancer(senseClient, carService)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 				os.Exit(1)

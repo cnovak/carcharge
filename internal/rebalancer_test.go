@@ -1,7 +1,7 @@
 /*
 Copyright © 2022 Chris Novak <canovak@gmail.com>
 */
-package pkg
+package internal
 
 import (
 	"testing"

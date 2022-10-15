@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	util "github.com/cnovak/carcharge/util"
+	util "github.com/cnovak/carcharge/internal/util"
 )
 
 // rootCmd represents the base command when called without any subcommands

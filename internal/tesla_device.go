@@ -1,7 +1,7 @@
 /*
 Copyright © 2022 Chris Novak <canovak@gmail.com>
 */
-package pkg
+package internal
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/bogosj/tesla"
-	"github.com/cnovak/carcharge/util"
+	"github.com/cnovak/carcharge/internal/util"
 	"golang.org/x/oauth2"
 )
 
