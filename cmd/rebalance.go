@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/cnovak/carcharge/pkg"
@@ -25,8 +26,23 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		for {
 			senseClient, _ := pkg.NewSenseService(util.Config.Sense.Username, util.Config.Sense.Password)
-			carService := &pkg.TeslaService{}
-			rebalancer := pkg.NewRebalancer(senseClient, carService)
+			vehicleClient, err := pkg.GetVehicleClient()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+
+			carService, err := pkg.NewTeslaService(vehicleClient)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+			rebalancer, err := pkg.NewRebalancer(senseClient, carService)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+
 			rebalancer.Rebalance()
 			sleepMinutes := 2
 			var plural string

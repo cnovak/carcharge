@@ -23,7 +23,7 @@ type MockTeslaService struct {
 	mock.Mock
 }
 
-func (m *MockTeslaService) chargeCar(targetWatts int) error {
+func (m *MockTeslaService) ChargeCar(targetWatts int) error {
 	args := m.Called(targetWatts)
 	return args.Error(0)
 }
@@ -32,7 +32,8 @@ func TestRebalance(t *testing.T) {
 
 	mockSenseService := &MockSenseService{}
 	mockTeslaService := &MockTeslaService{}
-	rb := NewRebalancer(mockSenseService, mockTeslaService)
+	rb, err := NewRebalancer(mockSenseService, mockTeslaService)
+	assert.Nil(t, err)
 
 	var myTests = []struct {
 		powerUsage  PowerUsage
@@ -47,7 +48,7 @@ func TestRebalance(t *testing.T) {
 
 	for _, testData := range myTests {
 		senseMockCall := mockSenseService.On("getRealTime").Return(&testData.powerUsage, nil).Once()
-		teslaMockCall := mockTeslaService.On("chargeCar", testData.chargeWatts).Return(nil).Once()
+		teslaMockCall := mockTeslaService.On("ChargeCar", testData.chargeWatts).Return(nil).Once()
 		err := rb.Rebalance()
 		assert.Nil(t, err)
 		mockSenseService.AssertExpectations(t)
@@ -64,7 +65,8 @@ func TestRebalanceWhenBalanced(t *testing.T) {
 
 	mockSenseService := &MockSenseService{}
 	mockTeslaService := &MockTeslaService{}
-	rb := NewRebalancer(mockSenseService, mockTeslaService)
+	rb, err := NewRebalancer(mockSenseService, mockTeslaService)
+	assert.Nil(t, err)
 
 	// If power is balanced do not make a call
 	myTests := []struct {

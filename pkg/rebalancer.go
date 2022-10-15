@@ -16,11 +16,11 @@ type RebalancerImpl struct {
 	carService    CarService
 }
 
-func NewRebalancer(energyService EnergyService, carService CarService) *RebalancerImpl {
+func NewRebalancer(energyService EnergyService, carService CarService) (*RebalancerImpl, error) {
 	return &RebalancerImpl{
 		energyService: energyService,
 		carService:    carService,
-	}
+	}, nil
 }
 
 func (rb *RebalancerImpl) Rebalance() error {
@@ -48,14 +48,14 @@ func (rb *RebalancerImpl) Rebalance() error {
 		// modify charging to be less
 		ctx.Info("reduce usage")
 		//stopChargingCar()
-		err := rb.carService.chargeCar(int(powerNeeded))
+		err := rb.carService.ChargeCar(int(powerNeeded))
 		if err != nil {
 			log.WithError(err).Error("error charging car")
 		}
 	} else if powerNeeded > 0 {
 		// modify charging to be more
 		ctx.Info("increase usage")
-		err := rb.carService.chargeCar(int(powerNeeded))
+		err := rb.carService.ChargeCar(int(powerNeeded))
 		if err != nil {
 			log.WithError(err).Error("error charging car")
 		}
