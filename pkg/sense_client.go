@@ -13,7 +13,8 @@ import (
 )
 
 const baseUrl = "https://api.sense.com/apiservice/api/v1/authenticate"
-const wsUrl = "wss://clientrt.sense.com/monitors/%v/realtimefeed?access_token=%s&"
+const wsUrl = "wss://clientrt.sense.com/monitors/%v/realtimefeed?access_token=%s"
+
 const contentType = "application/x-www-form-urlencoded; charset=UTF-8;"
 
 type EnergyService interface {
