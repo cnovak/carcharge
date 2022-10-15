@@ -9,10 +9,10 @@
         "type": "go",
         "request": "launch",
         "mode": "test",
-        "program": "${workspaceFolder}/internal",
+        "program": "${workspaceFolder}/internal/services",
         "args": [
             "-test.run",
-            "TestRebalance"
+            "TestTeslaService"
         ]
     },
       

@@ -1,7 +1,7 @@
 /*
 Copyright © 2022 Chris Novak <canovak@gmail.com>
 */
-package internal
+package services
 
 import (
 	"context"
