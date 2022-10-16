@@ -126,7 +126,7 @@ func (t *TeslaService) stopChargingCar(vehicle *tesla.Vehicle) error {
 	return nil
 }
 
-func (t *TeslaService) ChargeCar(targetWatts int) error {
+func (t *TeslaService) ChargeCar(deltaWatts int) error {
 	vehicle, err := t.getVehicle()
 	ctx := log.WithFields(log.Fields{
 		"vin":     vehicle.Vin,
@@ -149,19 +149,31 @@ func (t *TeslaService) ChargeCar(targetWatts int) error {
 		return err
 	}
 
+	switch chargeState.ChargingState {
+	case "Disconnected":
+		ctx.WithField("ChargeState", chargeState.ChargingState).Info("Car disconnected")
+		return nil
+	case "Complete":
+		ctx.WithField("ChargeState", chargeState.ChargingState).Debug("Charging complete")
+		return nil
+	}
+
 	volts := util.Config.Tesla.ChargerVolts
 	currentAmps := chargeState.ChargeAmps
-	// What is the current amps and wattage?
-	currentWatts := currentAmps * volts
+	// How much power are we currently consuming?
+	var currentWatts int
+	if chargeState.ChargingState == "Stopped" {
+		currentWatts = 0
+	} else {
+		currentWatts = currentAmps * volts
+	}
+	ctx.WithField("ChargeState", chargeState.ChargingState).Debug("Charge State")
 
-	// what is the delta of watts needed?
-	deltaWatts := currentWatts + targetWatts
+	targetWatts := currentWatts + deltaWatts
 
-	// figure out how many amps needed to match target
-
-	targetAmps := deltaWatts / volts
-	actualWatts := targetAmps * volts
-	ctx.WithFields(log.Fields{"deltaWatts": deltaWatts, "actualWatts": actualWatts, "targetWatts": targetWatts, "targetAmps": targetAmps, "volts": volts}).Info("calculated amps")
+	targetAmps := targetWatts / volts
+	// actualWatts := targetAmps * volts
+	ctx.WithFields(log.Fields{"currentWatts": currentWatts, "deltaWatts": deltaWatts, "targetWatts": targetWatts, "targetAmps": targetAmps, "volts": volts}).Info("calculated amps")
 
 	// if amps < 4 since min charge is 5, stop charging
 	// else match target amps
@@ -178,11 +190,30 @@ func (t *TeslaService) ChargeCar(targetWatts int) error {
 		return nil
 	}
 
-	ctx.WithFields(log.Fields{"targetAmps": targetAmps, "currentAmps": currentAmps}).Debug("setting charging amps")
-	err = vehicle.SetChargingAmps(targetAmps)
-	if err != nil {
-		ctx.WithError(err).Error("setting charging amps")
-		return err
+	// try setting amps 5 times, sometimes Tesla API seemst to not
+	// set amps correctly when amps < 5
+	maxAmpRetries := 5
+	for i := 0; i < maxAmpRetries; i++ {
+		// Set amps
+		ctx.WithFields(log.Fields{"targetAmps": targetAmps, "currentAmps": currentAmps}).Debug("setting charging amps")
+		err = vehicle.SetChargingAmps(targetAmps)
+		if err != nil {
+			ctx.WithError(err).Error("setting charging amps")
+			return err
+		}
+		//time.Sleep(time.Duration(2) * time.Second)
+		// validate amps are set correctly
+		chargeState, err := vehicle.ChargeState()
+		ctx.WithFields(log.Fields{"chargeState.ChargeAmps": chargeState.ChargeAmps, "targetAmps": targetAmps}).Error("Check currentAmps match targetAmps")
+		if err != nil {
+			ctx.WithError(err).Error("error getting charge state")
+		} else {
+			if chargeState.ChargeAmps == targetAmps {
+				break
+			} else {
+				ctx.WithFields(log.Fields{"chargeState.ChargeAmps": chargeState.ChargeAmps, "targetAmps": targetAmps}).Error("Setting amps did not work")
+			}
+		}
 	}
 
 	// if charging is already happening, we are done
