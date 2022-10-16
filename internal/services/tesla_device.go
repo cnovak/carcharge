@@ -20,27 +20,15 @@ type CarService interface {
 }
 
 type TeslaService struct {
-	vehicle *tesla.Vehicle
-	logCtx  *log.Entry
+	client TeslaClient
+	logCtx *log.Entry
 }
 
-func NewTeslaService(vehicle *tesla.Vehicle) (*TeslaService, error) {
-	ctx := log.WithFields(log.Fields{
-		"vin":     vehicle.Vin,
-		"carName": vehicle.DisplayName,
-	})
-
-	return &TeslaService{
-		vehicle: vehicle,
-		logCtx:  ctx,
-	}, nil
+type TeslaClient interface {
+	Vehicles() ([]*tesla.Vehicle, error)
 }
 
-func init() {
-
-}
-
-func GetVehicleClient() (*tesla.Vehicle, error) {
+func GetVehicleClient() (*tesla.Client, error) {
 
 	token := new(oauth2.Token)
 	token.AccessToken = util.Config.Tesla.AccessToken
@@ -58,8 +46,19 @@ func GetVehicleClient() (*tesla.Vehicle, error) {
 		log.WithError(err).Error("cannot get car client")
 		return nil, err
 	}
+	return carClient, nil
+}
 
-	vehicles, err := carClient.Vehicles()
+func NewTeslaService(client TeslaClient) (*TeslaService, error) {
+
+	return &TeslaService{
+		client: client,
+	}, nil
+}
+
+func (t *TeslaService) getVehicle() (*tesla.Vehicle, error) {
+
+	vehicles, err := t.client.Vehicles()
 	if err != nil {
 		log.WithError(err).Error("cannot get vehcile list")
 		return nil, err
@@ -89,90 +88,115 @@ func GetVehicleClient() (*tesla.Vehicle, error) {
 	return vehicle, err
 }
 
-func (t *TeslaService) stopChargingCar() error {
+func (t *TeslaService) stopChargingCar(vehicle *tesla.Vehicle) error {
 
-	vehicle, err := t.teslaWakeup(t.vehicle)
+	ctx := log.WithFields(log.Fields{
+		"vin":     vehicle.Vin,
+		"carName": vehicle.DisplayName,
+	})
+
+	vehicle, err := t.teslaWakeup(vehicle)
 	if err != nil {
-		t.logCtx.WithError(err).Error("waking vehicle")
+		ctx.WithError(err).Error("waking vehicle")
 		return err
 	}
 
 	chargeState, err := vehicle.ChargeState()
 	if err != nil {
-		t.logCtx.WithError(err).Error("error getting charge state")
+		ctx.WithError(err).Error("error getting charge state")
 		return err
 	}
 
 	// if charging is stopped, we are done
 	if chargeState.ChargingState == "Stopped" {
-		t.logCtx.WithField("ChargeState", chargeState.ChargingState).Debug("charging already stopped")
+		ctx.WithField("ChargeState", chargeState.ChargingState).Debug("charging already stopped")
 		return nil
 	}
 
 	err = vehicle.StopCharging()
 	if err != nil {
-		t.logCtx.WithError(err).Error("Error stopping car charging")
+		ctx.WithError(err).Error("Error stopping car charging")
 		return err
 	}
 
 	// // Set charging amps back up to max
 	// err = vehicle.SetChargingAmps(chargeState.ChargeCurrentRequestMax)
 
-	t.logCtx.Debug("Stopped charging")
+	ctx.Debug("Stopped charging")
 	return nil
 }
 
 func (t *TeslaService) ChargeCar(targetWatts int) error {
-
-	vehicle, err := t.teslaWakeup(t.vehicle)
+	vehicle, err := t.getVehicle()
+	ctx := log.WithFields(log.Fields{
+		"vin":     vehicle.Vin,
+		"carName": vehicle.DisplayName,
+	})
 	if err != nil {
-		t.logCtx.WithError(err).Error("waking vehicle")
+		ctx.WithError(err).Error("waking vehicle")
+		return err
+	}
+
+	vehicle, err = t.teslaWakeup(vehicle)
+	if err != nil {
+		ctx.WithError(err).Error("waking vehicle")
 		return err
 	}
 
 	chargeState, err := vehicle.ChargeState()
 	if err != nil {
-		t.logCtx.WithError(err).Error("error getting charge state")
+		ctx.WithError(err).Error("error getting charge state")
 		return err
 	}
 
-	// figure out how many amps needed to match target
 	volts := util.Config.Tesla.ChargerVolts
-	targetAmps := targetWatts / volts
+	currentAmps := chargeState.ChargeAmps
+	// What is the current amps and wattage?
+	currentWatts := currentAmps * volts
+
+	// what is the delta of watts needed?
+	deltaWatts := currentWatts + targetWatts
+
+	// figure out how many amps needed to match target
+
+	targetAmps := deltaWatts / volts
 	actualWatts := targetAmps * volts
-	t.logCtx.WithFields(log.Fields{"actualWatts": actualWatts, "targetWatts": targetWatts, "targetAmps": targetAmps, "volts": volts}).Info("calculated amps")
+	ctx.WithFields(log.Fields{"deltaWatts": deltaWatts, "actualWatts": actualWatts, "targetWatts": targetWatts, "targetAmps": targetAmps, "volts": volts}).Info("calculated amps")
 
 	// if amps < 4 since min charge is 5, stop charging
 	// else match target amps
-	if targetAmps <= 0 {
+	if targetAmps < 1 {
 		// stop charging
-		t.logCtx.Info("stop charging")
-		t.stopChargingCar()
+		ctx.Info("stop charging")
+		t.stopChargingCar(vehicle)
 		return nil
 	}
 
 	// set target amps
-	t.logCtx.WithField("amps", targetAmps).Info("setting charging amps")
+	if targetAmps == currentAmps {
+		ctx.WithFields(log.Fields{"targetAmps": targetAmps, "currentAmps": currentAmps}).Debug("target amps equals current amps")
+		return nil
+	}
 
-	t.logCtx.Debug("setting charging amps")
+	ctx.WithFields(log.Fields{"targetAmps": targetAmps, "currentAmps": currentAmps}).Debug("setting charging amps")
 	err = vehicle.SetChargingAmps(targetAmps)
 	if err != nil {
-		t.logCtx.WithError(err).Error("setting charging amps")
+		ctx.WithError(err).Error("setting charging amps")
 		return err
 	}
 
 	// if charging is already happening, we are done
 	if chargeState.ChargingState == "Charging" {
-		t.logCtx.WithField("ChargeState", chargeState.ChargingState).Debug("charging already started")
+		ctx.WithField("ChargeState", chargeState.ChargingState).Debug("charging already started")
 		return nil
 	}
 
 	err = vehicle.StartCharging()
 	if err != nil {
-		t.logCtx.WithError(err).Error("starting charge failed")
+		ctx.WithError(err).Error("starting charge failed")
 		return err
 	}
-	t.logCtx.Info("charging started")
+	ctx.Info("charging started")
 	return nil
 }
 

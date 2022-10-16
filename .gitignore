@@ -3,3 +3,4 @@ config.yaml
 carcharge
 logfile.log
 __debug_bin
+log.txt

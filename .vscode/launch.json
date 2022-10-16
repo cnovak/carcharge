@@ -12,7 +12,7 @@
         "program": "${workspaceFolder}/internal/services",
         "args": [
             "-test.run",
-            "TestTeslaService"
+            "TestRebalanceWhenBalanced"
         ]
     },
       
