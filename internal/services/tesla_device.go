@@ -128,14 +128,15 @@ func (t *TeslaService) stopChargingCar(vehicle *tesla.Vehicle) error {
 
 func (t *TeslaService) ChargeCar(deltaWatts int) error {
 	vehicle, err := t.getVehicle()
+	if err != nil {
+		log.WithError(err).Error("ChargeCar: cannot get vehicle information")
+		return err
+	}
+
 	ctx := log.WithFields(log.Fields{
 		"vin":     vehicle.Vin,
 		"carName": vehicle.DisplayName,
 	})
-	if err != nil {
-		ctx.WithError(err).Error("waking vehicle")
-		return err
-	}
 
 	vehicle, err = t.teslaWakeup(vehicle)
 	if err != nil {

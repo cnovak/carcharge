@@ -9,10 +9,10 @@
         "type": "go",
         "request": "launch",
         "mode": "test",
-        "program": "${workspaceFolder}/internal/services",
+        "program": "${workspaceFolder}/internal/cache",
         "args": [
             "-test.run",
-            "TestRebalanceWhenBalanced"
+            "TestExpiration"
         ]
     },
       

@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -24,8 +25,23 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		var err error
+		defer func() {
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}()
+
+		log.Println("open file")
+		defer log.Println("close file")
+		os.Exit(1)
+
 		for {
-			senseClient, _ := services.NewSenseService(util.Config.Sense.Username, util.Config.Sense.Password)
+			senseClient, err := services.NewSenseService(util.Config.Sense.Username, util.Config.Sense.Password)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
 			vehicleClient, err := services.GetVehicleClient()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -44,15 +60,15 @@ to quickly create a Cobra application.`,
 			}
 
 			rebalancer.Rebalance()
-			sleepMinutes := 2
+			sleepSeconds := 30
 			var plural string
-			if sleepMinutes > 1 {
+			if sleepSeconds > 1 {
 				plural = "s"
 			} else {
 				plural = ""
 			}
-			fmt.Printf("sleeping for %d minute%s...", sleepMinutes, plural)
-			time.Sleep(time.Duration(sleepMinutes) * time.Minute)
+			fmt.Printf("sleeping for %d second%s...", sleepSeconds, plural)
+			time.Sleep(time.Duration(sleepSeconds) * time.Second)
 		}
 	},
 }

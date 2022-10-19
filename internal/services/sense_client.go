@@ -43,7 +43,7 @@ func NewSenseService(username string, password string) (me *SenseService, err er
 	return me, nil
 }
 
-func (c *SenseService) getToken(username string, password string) {
+func (c *SenseService) getToken(username string, password string) error {
 
 	jsonBody := []byte(fmt.Sprintf("email=%s&password=%s", username, password))
 	bodyReader := bytes.NewReader(jsonBody)
@@ -62,9 +62,16 @@ func (c *SenseService) getToken(username string, password string) {
 	var httpResult map[string]interface{}
 	json.Unmarshal([]byte(body), &httpResult)
 
+	// Check for error in the JSON response
+	if httpResult["status"] == "error" {
+		msg := fmt.Sprintf("error returned from sense getToken(): %v", httpResult["error_reason"])
+		log.Println(msg)
+		return errors.New(msg)
+	}
+
 	c.token = httpResult["access_token"].(string)
 	c.monitorId = httpResult["monitors"].([]interface{})[0].(map[string]interface{})["id"].(float64)
-
+	return nil
 }
 
 func (c *SenseService) getRealTime() (*PowerUsage, error) {
