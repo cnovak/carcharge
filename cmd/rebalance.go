@@ -1,6 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
@@ -31,10 +28,6 @@ to quickly create a Cobra application.`,
 				log.Fatalln(err)
 			}
 		}()
-
-		log.Println("open file")
-		defer log.Println("close file")
-		os.Exit(1)
 
 		for {
 			senseClient, err := services.NewSenseService(util.Config.Sense.Username, util.Config.Sense.Password)

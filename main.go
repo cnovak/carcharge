@@ -1,6 +1,3 @@
-/*
-Copyright © 2022 Chris Novak <canovak@gmail.com>
-*/
 package main
 
 import (
