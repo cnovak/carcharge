@@ -1,6 +1,3 @@
-/*
-Copyright © 2022 Chris Novak <canovak@gmail.com>
-*/
 package services
 
 import (
@@ -15,8 +12,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const baseUrl = "https://api.sense.com/apiservice/api/v1/authenticate"
-const wsUrl = "wss://clientrt.sense.com/monitors/%v/realtimefeed?access_token=%s"
+const baseURL = "https://api.sense.com/apiservice/api/v1/authenticate"
+const wsURL = "wss://clientrt.sense.com/monitors/%v/realtimefeed?access_token=%s"
 
 const contentType = "application/x-www-form-urlencoded; charset=UTF-8;"
 
@@ -26,7 +23,7 @@ type EnergyService interface {
 
 type SenseService struct {
 	token     string
-	monitorId float64
+	monitorID float64
 }
 
 type PowerUsage struct {
@@ -48,7 +45,7 @@ func (c *SenseService) getToken(username string, password string) error {
 	jsonBody := []byte(fmt.Sprintf("email=%s&password=%s", username, password))
 	bodyReader := bytes.NewReader(jsonBody)
 
-	resp, err := http.Post(baseUrl, contentType, bodyReader)
+	resp, err := http.Post(baseURL, contentType, bodyReader)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,16 +67,14 @@ func (c *SenseService) getToken(username string, password string) error {
 	}
 
 	c.token = httpResult["access_token"].(string)
-	c.monitorId = httpResult["monitors"].([]interface{})[0].(map[string]interface{})["id"].(float64)
+	c.monitorID = httpResult["monitors"].([]interface{})[0].(map[string]interface{})["id"].(float64)
 	return nil
 }
 
 func (c *SenseService) getRealTime() (*PowerUsage, error) {
 
-	//addr := fmt.Sprintf(wsUrl, c.monitorId, c.token)
-	addr := fmt.Sprintf(wsUrl, c.monitorId, c.token)
+	addr := fmt.Sprintf(wsURL, c.monitorID, c.token)
 
-	//u := url.URL{Scheme: "ws", Host: addr, Path: "/echo"}
 	log.Printf("\nconnecting to %s\n", addr)
 
 	wsConnnection, _, err := websocket.DefaultDialer.Dial(addr, nil)
