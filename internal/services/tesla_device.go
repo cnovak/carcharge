@@ -202,10 +202,10 @@ func (t *TeslaService) ChargeCar(deltaWatts int) error {
 		//time.Sleep(time.Duration(2) * time.Second)
 		// validate amps are set correctly
 		chargeState, err := vehicle.ChargeState()
-		ctx.WithFields(log.Fields{"chargeState.ChargeAmps": chargeState.ChargeAmps, "targetAmps": targetAmps}).Error("Check currentAmps match targetAmps")
 		if err != nil {
 			ctx.WithError(err).Error("error getting charge state")
 		} else {
+			ctx.WithFields(log.Fields{"chargeState.ChargeAmps": chargeState.ChargeAmps, "targetAmps": targetAmps}).Error("Check currentAmps match targetAmps")
 			if chargeState.ChargeAmps == targetAmps {
 				break
 			} else {
