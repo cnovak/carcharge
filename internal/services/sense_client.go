@@ -47,13 +47,13 @@ func (c *SenseService) getToken(username string, password string) error {
 
 	resp, err := http.Post(baseURL, contentType, bodyReader)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("error autentication to Sense: %v", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("io.ReadAll() error(%v)", err)
+		return fmt.Errorf("io.ReadAll() error(%v)", err)
 	}
 
 	var httpResult map[string]interface{}
